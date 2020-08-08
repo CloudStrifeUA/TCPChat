@@ -8,7 +8,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#define N 1
+#define N 10
+#define _XOPEN_SOURCE_EXTENDED 1
 
 class Socket_base
 {
@@ -16,7 +17,8 @@ class Socket_base
     Socket_base() = default;
     explicit Socket_base(int _domain, int type, int protocol);
     virtual int Close();
-    virtual ~Socket_base();
+    virtual bool operator !() const;
+    virtual bool operator ==(const Socket_base& other) const;
     protected:
     int socketfd;
     int domain;
@@ -31,10 +33,10 @@ class Client_Socket_base: public Socket_base
     virtual int Write(const std::string& msg);
 };
 
-class Client: public Client_Socket_base
+class TCPClient: public Client_Socket_base
 {
     public:
-    explicit Client(int domain, int type, int protocol);
+    explicit TCPClient();
     bool Connect(const std::string ip, uint16_t port);
 };
 
@@ -43,15 +45,14 @@ class AcceptedClient: public Client_Socket_base
     public:
     AcceptedClient() = default;
     explicit AcceptedClient(int client_socketfd, sockaddr_in _addr, socklen_t _addr_len);
-    operator bool() const;
     sockaddr_in addr;
     socklen_t addr_len;
 };
 
-class Server: public Socket_base
+class TCPServer: public Socket_base
 {
     public:
-    explicit Server(int domain, int type, int protocol);
+    explicit TCPServer();
     bool Bind(uint16_t port, const std::string ip = "");
     int Listen();
     AcceptedClient Accept();

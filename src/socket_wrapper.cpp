@@ -1,6 +1,7 @@
 #include"../include/socket_wrapper.h"
 #include <unistd.h>
 #include <string.h>
+#include <iostream>
 
 Socket_base::Socket_base(int _domain, int type, int protocol):domain(_domain)
 {
@@ -15,9 +16,14 @@ int Socket_base::Close()
     return close(socketfd);
 }
 
-Socket_base::~Socket_base()
+bool Socket_base::operator !() const
 {
-    close(socketfd);
+    return socketfd < 0;
+}
+
+bool Socket_base::operator==(const Socket_base& other) const
+{
+    return socketfd == other.socketfd;
 }
 
 Client_Socket_base::Client_Socket_base(int domain, int type, int protocol):Socket_base(domain, type, protocol){}
@@ -33,14 +39,14 @@ int Client_Socket_base::Write(const std::string& msg)
     return write(socketfd, c_msg, strlen(c_msg));
 }
 
-Client::Client(int domain, int type, int protocol):Client_Socket_base(domain, type, protocol){}
+TCPClient::TCPClient():Client_Socket_base(AF_INET, SOCK_STREAM, IPPROTO_TCP){}
 
-bool Client::Connect(const std::string ip, uint16_t port)
+bool TCPClient::Connect(const std::string ip, uint16_t port)
 {
     hostent* host = gethostbyname(ip.c_str());
     sockaddr_in adr;
     adr.sin_family = domain;
-    adr.sin_addr.s_addr = reinterpret_cast<in_addr_t&>(host->h_addr_list[0]);
+    adr.sin_addr.s_addr = *((in_addr_t*)host->h_addr_list[0]);
     adr.sin_port = htons(port);
     if(connect(socketfd, (sockaddr*)&adr, sizeof(adr)) < 0)
     {
@@ -55,14 +61,9 @@ AcceptedClient::AcceptedClient(int client_socketfd, sockaddr_in _addr, socklen_t
     socketfd = client_socketfd;
 }
 
-AcceptedClient::operator bool() const
-{
-    return socketfd >= 0;
-}
+TCPServer::TCPServer():Socket_base(AF_INET, SOCK_STREAM, IPPROTO_TCP){}
 
-Server::Server(int domain, int type, int protocol):Socket_base(domain, type, protocol){}
-
-bool Server::Bind(uint16_t port, const std::string ip /* = "" */)
+bool TCPServer::Bind(uint16_t port, const std::string ip /* = "" */)
 {
     sockaddr_in adr;
     adr.sin_family = domain;
@@ -70,7 +71,7 @@ bool Server::Bind(uint16_t port, const std::string ip /* = "" */)
     if(ip != "")
     {
         hostent* host = gethostbyname(ip.c_str());
-        adr.sin_addr.s_addr = reinterpret_cast<in_addr_t&>(host -> h_addr_list[0]);
+        adr.sin_addr.s_addr = *((in_addr_t*)host->h_addr_list[0]);
     }
     else adr.sin_addr.s_addr = htonl(INADDR_ANY);
     if(bind(socketfd, (sockaddr*)&adr, sizeof(adr)) < 0)
@@ -81,15 +82,15 @@ bool Server::Bind(uint16_t port, const std::string ip /* = "" */)
     return true;
 }
 
-int Server::Listen()
+int TCPServer::Listen()
 {
     return listen(socketfd, N);
 }
 
-AcceptedClient Server::Accept()
+AcceptedClient TCPServer::Accept()
 {
     sockaddr_in addr;
-    socklen_t addr_len;
+    socklen_t addr_len = sizeof(addr);
     int clientfd = accept(socketfd, (sockaddr*)&addr, &addr_len);
     return AcceptedClient(clientfd, addr, addr_len);
 }
